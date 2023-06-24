@@ -79,9 +79,58 @@ impl OrderInfo<OpenState> {
     }
 }
 
+impl<S: OrderState> Ord for OrderInfo<S> {
+    fn cmp(&self, other: &Self) -> std::cmp::Ordering {
+        self.price.cmp(&other.price)
+    }
+}
+
+impl<S: OrderState> PartialOrd for OrderInfo<S> {
+    fn partial_cmp(&self, other: &Self) -> Option<std::cmp::Ordering> {
+        Some(self.cmp(&other))
+    }
+}
 #[cfg(test)]
 mod tests {
+    use std::{
+        cmp::{Ordering, Reverse},
+        collections::BinaryHeap,
+    };
+
     use super::*;
+
+    #[test]
+    fn cmp_order() {
+        let high_order = OrderInfo::new("321".to_owned(), 7.0, 3);
+        let small_order = OrderInfo::new("123".to_owned(), 3.0, 5);
+
+        assert_eq!(Ordering::Greater, high_order.cmp(&small_order));
+        assert_eq!(Ordering::Equal, high_order.cmp(&high_order));
+        assert_eq!(Ordering::Less, small_order.cmp(&high_order));
+    }
+
+    #[test]
+    fn heap_orders() {
+        let mut max_heap = BinaryHeap::new();
+        max_heap.push(OrderInfo::new("2".into(), 5.0, 10));
+        max_heap.push(OrderInfo::new("1".into(), 7.0, 5));
+        max_heap.push(OrderInfo::new("3".into(), 3.75, 100));
+
+        assert_eq!(3, max_heap.len());
+        assert_eq!(7.0, *max_heap.pop().unwrap().price);
+        assert_eq!(5.0, *max_heap.pop().unwrap().price);
+        assert_eq!(3.75, *max_heap.pop().unwrap().price);
+
+        let mut min_heap = BinaryHeap::new();
+        min_heap.push(Reverse(OrderInfo::new("2".into(), 5.0, 10)));
+        min_heap.push(Reverse(OrderInfo::new("1".into(), 7.0, 5)));
+        min_heap.push(Reverse(OrderInfo::new("3".into(), 3.75, 100)));
+
+        assert_eq!(3, min_heap.len());
+        assert_eq!(3.75, *min_heap.pop().unwrap().0.price);
+        assert_eq!(5.0, *min_heap.pop().unwrap().0.price);
+        assert_eq!(7.0, *min_heap.pop().unwrap().0.price);
+    }
 
     #[test]
     fn check_order_state() {
