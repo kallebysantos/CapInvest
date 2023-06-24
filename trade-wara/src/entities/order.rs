@@ -8,6 +8,12 @@ derive_alias! {
 }
 
 
+#[derive(Debug, PartialEq)]
+pub enum OrderTransition {
+    Open(OrderInfo<OpenState>),
+    Closed(OrderInfo<ClosedState>),
+}
+
 pub trait OrderState: Eq + PartialEq {}
 
 #[derive(Debug, Ord!)]
@@ -40,6 +46,14 @@ impl<S: OrderState> OrderInfo<S> {
         }
     }
 
+    fn check_order(&self) -> OrderTransition {
+        if self.pending_shares > 0 {
+            return OrderTransition::Open(self.copy());
+        }
+
+        OrderTransition::Closed(self.copy())
+    }
+
     pub fn id(&self) -> &str {
         &self.id
     }
@@ -63,4 +77,23 @@ impl OrderInfo<OpenState> {
     pub fn pending_shares(&self) -> &u32 {
         &self.pending_shares
     }
+}
+
+#[cfg(test)]
+mod tests {
+    use super::*;
+
+    #[test]
+    fn check_order_state() {
+        let mut order = OrderInfo::new("123".into(), 7.0, 5);
+
+        // "Setting pending shares to zero should close an Order"
+        order.pending_shares = 0;
+        assert_eq!(OrderTransition::Closed(order.copy()), order.check_order());
+
+        // "Setting pending shares greater than zero should keep Order open"
+        order.pending_shares = 5;
+        assert_eq!(OrderTransition::Open(order.copy()), order.check_order());
+    }
+
 }
