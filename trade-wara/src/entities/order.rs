@@ -151,8 +151,8 @@ mod tests {
     #[test]
     fn heap_orders() {
         let mut heap = BinaryHeap::<Order<Sell, Open>>::new();
-        heap.push(Order::new("2".into(), 7.0, 3));
         heap.push(Order::new("1".into(), 5.0, 5));
+        heap.push(Order::new("2".into(), 7.0, 3));
         heap.push(Order::new("3".into(), 3.75, 100));
 
         assert_eq!(3, heap.len());
