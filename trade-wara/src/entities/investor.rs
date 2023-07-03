@@ -1,6 +1,7 @@
 use std::collections::HashMap;
 
-struct Investor {
+#[derive(Debug, Eq, PartialEq, Clone)]
+pub struct Investor {
     id: String,
     name: String,
     assets: HashMap<String, u32>,
@@ -39,9 +40,13 @@ impl Investor {
             return Err("Out range quantity".into());
         }
 
-        *asset = quantity;
+        *asset -= quantity;
 
         Ok(())
+    }
+
+    pub(super) fn assets(&self) -> &HashMap<String, u32> {
+        &self.assets
     }
 }
 
@@ -78,14 +83,15 @@ mod tests {
             investor.decrement_asset("MXRF11".into(), 20)
         );
 
-        assert_eq!(Ok(()), investor.decrement_asset("HGLG11".into(), 5));
+        assert_eq!(Ok(()), investor.decrement_asset("HGLG11".into(), 7));
+        assert_eq!(investor.assets["HGLG11"], 3);
 
         assert_eq!(
             Err("Out range quantity".into()),
             investor.decrement_asset("HGLG11".into(), 6)
         );
 
-        assert_eq!(investor.assets["HGLG11"], 5);
+        assert_eq!(investor.assets["HGLG11"], 3);
         assert_eq!(investor.assets.len(), 1);
     }
 }
