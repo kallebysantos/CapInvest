@@ -2,7 +2,9 @@ use std::marker::PhantomData;
 
 use macro_rules_attribute::{derive, derive_alias};
 
-use crate::ComparableFloat;
+use crate::{
+    entities::asset::Asset, entities::investor::Investor, ComparableFloat,
+};
 
 derive_alias! {
     #[derive(Ord!)] = #[derive(PartialEq, Eq, Ord, PartialOrd)];
@@ -27,12 +29,14 @@ impl OrderState for Open {}
 pub struct Closed;
 impl OrderState for Closed {}
 
-#[derive(Debug, Eq, PartialEq)]
+#[derive(Debug, Eq, PartialEq, Clone)]
 pub struct Order<T: OrderType, S: OrderState> {
     id: String,
     price: ComparableFloat,
     shares: u32,
     pending_shares: u32,
+    asset: Asset,
+    investor: Investor,
     state: PhantomData<S>,
     order_type: PhantomData<T>,
 }
@@ -49,20 +53,20 @@ pub enum OrderTransition<T: OrderType> {
 }
 
 impl<T: OrderType, S: OrderState> Order<T, S> {
-    pub fn id(&self) -> &str {
-        &self.id
-    }
-
-    pub fn price(&self) -> &f32 {
-        &self.price
-    }
-
-    pub fn new(id: String, price: f32, shares: u32) -> Order<T, S> {
+    pub fn new(
+        asset: Asset,
+        investor: Investor,
+        id: String,
+        price: f32,
+        shares: u32,
+    ) -> Order<T, S> {
         Order::<T, S> {
             id,
             price: price.into(),
             shares,
             pending_shares: shares,
+            asset,
+            investor,
             state: PhantomData,
             order_type: PhantomData,
         }
@@ -71,9 +75,11 @@ impl<T: OrderType, S: OrderState> Order<T, S> {
     fn copy<TState: OrderState>(&self) -> Order<T, TState> {
         Order::<T, TState> {
             id: self.id.to_owned(),
-            price: ComparableFloat(self.price.to_owned()),
-            shares: self.shares,
+            price: self.price.to_owned(),
+            shares: self.shares.to_owned(),
             pending_shares: self.pending_shares,
+            asset: self.asset.to_owned(),
+            investor: self.investor.to_owned(),
             state: PhantomData,
             order_type: PhantomData,
         }
@@ -86,6 +92,22 @@ impl<T: OrderType, S: OrderState> Order<T, S> {
 
         OrderTransition::Closed(self.copy())
     }
+
+    pub fn id(&self) -> &str {
+        &self.id
+    }
+
+    pub fn price(&self) -> &f32 {
+        &self.price
+    }
+
+    pub fn investor(&self) -> &Investor {
+        &self.investor
+    }
+
+    pub fn asset(&self) -> &Asset {
+        &self.asset
+    }
 }
 
 impl<T: OrderType> Order<T, Open> {
@@ -95,12 +117,17 @@ impl<T: OrderType> Order<T, Open> {
 }
 
 impl Order<Buy, Open> {
-    pub fn buy(&mut self, share_count: u32) -> Result<OrderTransition<Buy>, OrderError> {
+    pub fn buy(
+        &mut self,
+        share_count: u32,
+    ) -> Result<OrderTransition<Buy>, OrderError> {
         if self.pending_shares < share_count {
             return Err(OrderError::OutRangeShareCount);
         }
 
-        // todo!() increment Investor asset position Here
+        self.investor
+            .increment_asset(self.asset.id().to_owned(), share_count);
+
         self.pending_shares -= share_count;
 
         Ok(self.check_order())
@@ -108,12 +135,21 @@ impl Order<Buy, Open> {
 }
 
 impl Order<Sell, Open> {
-    pub fn sell(&mut self, share_count: u32) -> Result<OrderTransition<Sell>, OrderError> {
+    pub fn sell(
+        &mut self,
+        share_count: u32,
+    ) -> Result<OrderTransition<Sell>, OrderError> {
         if self.pending_shares < share_count {
             return Err(OrderError::OutRangeShareCount);
         }
 
-        // todo!() decrement Investor asset position Here
+        if let Err(_) = self
+            .investor
+            .decrement_asset(self.asset.id().to_owned(), share_count)
+        {
+            return Err(OrderError::OutRangeShareCount);
+        }
+
         self.pending_shares -= share_count;
 
         Ok(self.check_order())
@@ -140,8 +176,27 @@ mod tests {
 
     #[test]
     fn cmp_order() {
-        let high_order = Order::<Sell, Open>::new("321".to_owned(), 7.0, 3);
-        let small_order = Order::<Sell, Open>::new("123".to_owned(), 3.0, 5);
+        let asset = Asset::new("HGLG11".into(), "FII HGLG11".into());
+        let investor = Investor::new(
+            "123".into(),
+            "Joe".into(),
+            vec![("HGLG11".into(), 10)],
+        );
+
+        let high_order = Order::<Sell, Open>::new(
+            asset.to_owned(),
+            investor.to_owned(),
+            "321".to_owned(),
+            7.0,
+            3,
+        );
+        let small_order = Order::<Sell, Open>::new(
+            asset.to_owned(),
+            investor.to_owned(),
+            "123".to_owned(),
+            3.0,
+            5,
+        );
 
         assert_eq!(Ordering::Greater, high_order.cmp(&small_order));
         assert_eq!(Ordering::Equal, high_order.cmp(&high_order));
@@ -150,10 +205,35 @@ mod tests {
 
     #[test]
     fn heap_orders() {
+        let asset = Asset::new("HGLG11".into(), "FII HGLG11".into());
+        let investor = Investor::new(
+            "123".into(),
+            "Joe".into(),
+            vec![("HGLG11".into(), 10)],
+        );
+
         let mut heap = BinaryHeap::<Order<Sell, Open>>::new();
-        heap.push(Order::new("1".into(), 5.0, 5));
-        heap.push(Order::new("2".into(), 7.0, 3));
-        heap.push(Order::new("3".into(), 3.75, 100));
+        heap.push(Order::new(
+            asset.to_owned(),
+            investor.to_owned(),
+            "1".into(),
+            5.0,
+            5,
+        ));
+        heap.push(Order::new(
+            asset.to_owned(),
+            investor.to_owned(),
+            "2".into(),
+            7.0,
+            3,
+        ));
+        heap.push(Order::new(
+            asset.to_owned(),
+            investor.to_owned(),
+            "3".into(),
+            3.75,
+            100,
+        ));
 
         assert_eq!(3, heap.len());
         assert_eq!(7.0, *heap.pop().unwrap().price);
@@ -163,7 +243,20 @@ mod tests {
 
     #[test]
     fn check_order_state() {
-        let mut order = Order::<Sell, Open>::new("123".into(), 7.0, 5);
+        let asset = Asset::new("HGLG11".into(), "FII HGLG11".into());
+        let investor = Investor::new(
+            "123".into(),
+            "Joe".into(),
+            vec![("HGLG11".into(), 10)],
+        );
+
+        let mut order = Order::<Sell, Open>::new(
+            asset,
+            investor.to_owned(),
+            "123".into(),
+            7.0,
+            5,
+        );
 
         // "Setting pending shares to zero should close an Order"
         order.pending_shares = 0;
@@ -176,7 +269,20 @@ mod tests {
 
     #[test]
     fn check_sell() {
-        let mut order = Order::<Sell, Open>::new("123".into(), 7.0, 5);
+        let asset = Asset::new("HGLG11".into(), "FII HGLG11".into());
+        let investor = Investor::new(
+            "123".into(),
+            "Joe".into(),
+            vec![("HGLG11".into(), 10)],
+        );
+
+        let mut order = Order::<Sell, Open>::new(
+            asset,
+            investor.to_owned(),
+            "123".into(),
+            7.0,
+            5,
+        );
 
         // "Selling more than it owns should return an Err"
         assert_eq!(Err(OrderError::OutRangeShareCount), order.sell(10));
@@ -184,15 +290,30 @@ mod tests {
         // "Selling less than it owns should be Ok and keep it open"
         let sell_partial = order.sell(3);
         assert_eq!(Ok(OrderTransition::Open(order.copy())), sell_partial);
+        assert_eq!(7, order.investor.assets()["HGLG11"]);
 
         // "Selling all pending shares should be Ok and change to closed"
         let sell_remain = order.sell(2);
         assert_eq!(Ok(OrderTransition::Closed(order.copy())), sell_remain);
+        assert_eq!(5, order.investor.assets()["HGLG11"]);
     }
 
     #[test]
     fn check_buy() {
-        let mut order = Order::<Buy, Open>::new("123".into(), 7.0, 5);
+        let asset = Asset::new("HGLG11".into(), "FII HGLG11".into());
+        let investor = Investor::new(
+            "123".into(),
+            "Joe".into(),
+            vec![("HGLG11".into(), 10)],
+        );
+
+        let mut order = Order::<Buy, Open>::new(
+            asset,
+            investor.to_owned(),
+            "123".into(),
+            7.0,
+            5,
+        );
 
         // "Buy more than it needs should return an Err"
         assert_eq!(Err(OrderError::OutRangeShareCount), order.buy(10));
@@ -200,9 +321,11 @@ mod tests {
         // "Buy less than it needs should be Ok and keep it open"
         let buy_partial = order.buy(3);
         assert_eq!(Ok(OrderTransition::Open(order.copy())), buy_partial);
+        assert_eq!(13, order.investor.assets()["HGLG11"]);
 
         // "Buy all pending shares should be Ok and change to closed"
         let buy_remain = order.buy(2);
         assert_eq!(Ok(OrderTransition::Closed(order.copy())), buy_remain);
+        assert_eq!(15, order.investor.assets()["HGLG11"]);
     }
 }

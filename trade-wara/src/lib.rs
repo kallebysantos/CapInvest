@@ -5,7 +5,7 @@ extern crate macro_rules_attribute;
 
 use std::{cmp::Ordering, ops::Deref};
 
-#[derive(Debug, PartialEq, PartialOrd)]
+#[derive(Debug, PartialEq, PartialOrd, Clone)]
 pub struct ComparableFloat(pub f32);
 
 impl Eq for ComparableFloat {}
