@@ -1,31 +1,25 @@
 use std::marker::PhantomData;
 
-use macro_rules_attribute::{derive, derive_alias};
-
 use crate::{
     entities::asset::Asset, entities::investor::Investor, ComparableFloat,
 };
 
-derive_alias! {
-    #[derive(Ord!)] = #[derive(PartialEq, Eq, Ord, PartialOrd)];
-}
-
 pub trait OrderType: PartialEq + Eq {}
 pub trait OrderState: PartialEq + Eq {}
 
-#[derive(Debug, Ord!)]
+#[derive(Debug, PartialEq, Eq, Ord, PartialOrd)]
 pub struct Buy;
 impl OrderType for Buy {}
 
-#[derive(Debug, Ord!)]
+#[derive(Debug, PartialEq, Eq, Ord, PartialOrd)]
 pub struct Sell;
 impl OrderType for Sell {}
 
-#[derive(Debug, Ord!)]
+#[derive(Debug, PartialEq, Eq, Ord, PartialOrd)]
 pub struct Open;
 impl OrderState for Open {}
 
-#[derive(Debug, Ord!)]
+#[derive(Debug, PartialEq, Eq, Ord, PartialOrd)]
 pub struct Closed;
 impl OrderState for Closed {}
 

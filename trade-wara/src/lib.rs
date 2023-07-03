@@ -1,8 +1,5 @@
 mod entities;
 
-#[macro_use]
-extern crate macro_rules_attribute;
-
 use std::{cmp::Ordering, ops::Deref};
 
 #[derive(Debug, PartialEq, PartialOrd, Clone)]
