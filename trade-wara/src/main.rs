@@ -1,5 +1,5 @@
 use std::{
-    collections::BinaryHeap,
+    collections::HashMap,
     sync::{
         mpsc::{channel, TryRecvError},
         Arc,
@@ -7,11 +7,10 @@ use std::{
     thread,
 };
 
-use trade_wara::entities::order::{
-    Buy, Open, Order, OrderItem, OrderResolution, OrderTransition, Sell,
-};
+use trade_wara::{entities::order::OrderItem, order_book::OrderBook};
 
 fn main() {
+    let mut book_hash = HashMap::new();
     let orders_in = channel::<Arc<dyn OrderItem>>();
     let orders_out = channel::<Arc<dyn OrderItem>>();
 
@@ -29,37 +28,27 @@ fn main() {
     thread::Builder::new()
         .name("trade-matcher".into())
         .spawn(move || loop {
-            let mut buy_orders = BinaryHeap::<Order<Buy, Open>>::new();
-            let mut sell_orders = BinaryHeap::<Order<Sell, Open>>::new();
-
             if let Ok(order) = orders_in.1.try_recv() {
-                match order.resolve_type() {
-                    OrderResolution::Sell(order) => {
-                        let OrderTransition::Open(order) = order else {
-                            panic!("Order is already closed");
-                        };
+                let book = book_hash
+                    .entry(order.asset_id())
+                    .or_insert(OrderBook::new(order.asset_id()));
 
-                        println!("SELL: {:?}", order);
-                        sell_orders.push(order);
-                    }
-                    OrderResolution::Buy(order) => {
-                        let OrderTransition::Open(order) = order else {
-                            panic!("Order is already closed");
-                        };
+                match book.append(order.resolve_type()) {
+                    Err(err) => panic!("{:?}", err),
+                    Ok(()) => {
+                        // Do order match here
 
-                        println!("BUY: {:?}", order);
-                        buy_orders.push(order);
+                        // Send order to orders_out
                     }
                 }
             }
-            // Send order to orders_out
         })
         .unwrap();
 
     // Order publisher
     loop {
         match orders_out.1.try_recv() {
-            Ok(_) => println!("Receive order in main"), // Publish processed order Kafka here
+            Ok(_) => println!("Receive in main"), // Publish processed order Kafka here
             Err(TryRecvError::Empty) => continue,
             Err(TryRecvError::Disconnected) => {
                 panic!("The channel has been disconnected, shutting down.");

@@ -9,6 +9,8 @@ use crate::{
 
 pub trait OrderItem: Sync + Send {
     fn resolve_type(&self) -> OrderResolution;
+
+    fn asset_id(&self) -> String;
 }
 pub trait OrderType: Sync + Send + PartialEq + Eq {}
 pub trait OrderState: Sync + Send + PartialEq + Eq {}
@@ -186,6 +188,10 @@ impl<T: OrderType + 'static, S: OrderState> OrderItem for Order<T, S> {
         }
 
         panic!("Invalid order type: {:?}", self.order_type);
+    }
+
+    fn asset_id(&self) -> String {
+        self.asset.id().to_owned()
     }
 }
 
