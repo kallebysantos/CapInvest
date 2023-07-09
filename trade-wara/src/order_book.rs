@@ -28,4 +28,42 @@ impl OrderBook {
             ..Default::default()
         }
     }
+
+    pub fn append(
+        &mut self,
+        order: OrderResolution,
+    ) -> Result<(), OrderBookError> {
+        match order {
+            OrderResolution::Sell(order) => {
+                let order = self.check_is_order_valid(order)?;
+
+                self.sell_orders.push(Reverse(order));
+            }
+            OrderResolution::Buy(order) => {
+                let order = self.check_is_order_valid(order)?;
+
+                self.buy_orders.push(order);
+            }
+        }
+
+        Ok(())
+    }
+
+    fn check_is_order_valid<T: OrderType>(
+        &self,
+        order: OrderTransition<T>,
+    ) -> Result<Order<T, Open>, OrderBookError> {
+        match order {
+            OrderTransition::Open(order) => {
+                if *order.asset().id() != self.asset_id {
+                    return Err(OrderBookError::InvalidOrderAssetId);
+                }
+
+                Ok(order)
+            }
+            OrderTransition::Closed(_) => {
+                return Err(OrderBookError::InvalidOrderState);
+            }
+        }
+    }
 }
