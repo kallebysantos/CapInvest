@@ -1,4 +1,5 @@
 pub mod entities;
+pub mod order_book;
 
 use std::{cmp::Ordering, ops::Deref};
 

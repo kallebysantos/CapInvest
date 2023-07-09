@@ -3,7 +3,8 @@ use uuid::Uuid;
 
 use super::order::{Buy, OrderTransition, Sell};
 
-struct Transaction {
+#[derive(Debug)]
+pub struct Transaction {
     id: String,
     buying_order: OrderTransition<Buy>,
     selling_order: OrderTransition<Sell>,
