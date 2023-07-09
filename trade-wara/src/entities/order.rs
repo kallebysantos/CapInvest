@@ -1,11 +1,17 @@
-use std::marker::PhantomData;
+use std::{
+    any::{Any, TypeId},
+    marker::PhantomData,
+};
 
 use crate::{
     entities::asset::Asset, entities::investor::Investor, ComparableFloat,
 };
 
-pub trait OrderType: PartialEq + Eq {}
-pub trait OrderState: PartialEq + Eq {}
+pub trait OrderItem: Sync + Send {
+    fn resolve_type(&self) -> OrderResolution;
+}
+pub trait OrderType: Sync + Send + PartialEq + Eq {}
+pub trait OrderState: Sync + Send + PartialEq + Eq {}
 
 #[derive(Debug, PartialEq, Eq, Ord, PartialOrd)]
 pub struct Buy;
@@ -46,6 +52,12 @@ pub enum OrderTransition<T: OrderType> {
     Closed(Order<T, Closed>),
 }
 
+#[derive(Debug, PartialEq)]
+pub enum OrderResolution {
+    Sell(OrderTransition<Sell>),
+    Buy(OrderTransition<Buy>),
+}
+
 impl<T: OrderType, S: OrderState> Order<T, S> {
     pub fn new(
         asset: Asset,
@@ -68,6 +80,19 @@ impl<T: OrderType, S: OrderState> Order<T, S> {
 
     fn copy<TState: OrderState>(&self) -> Order<T, TState> {
         Order::<T, TState> {
+            id: self.id.to_owned(),
+            price: self.price.to_owned(),
+            shares: self.shares.to_owned(),
+            pending_shares: self.pending_shares,
+            asset: self.asset.to_owned(),
+            investor: self.investor.to_owned(),
+            state: PhantomData,
+            order_type: PhantomData,
+        }
+    }
+
+    fn change_type<TType: OrderType>(&self) -> Order<TType, S> {
+        Order::<TType, S> {
             id: self.id.to_owned(),
             price: self.price.to_owned(),
             shares: self.shares.to_owned(),
@@ -147,6 +172,20 @@ impl Order<Sell, Open> {
         self.pending_shares -= share_count;
 
         Ok(self.check_order())
+    }
+}
+
+impl<T: OrderType + 'static, S: OrderState> OrderItem for Order<T, S> {
+    fn resolve_type(&self) -> OrderResolution {
+        if TypeId::of::<PhantomData<Buy>>() == self.order_type.type_id() {
+            return OrderResolution::Buy(self.change_type().check_order());
+        }
+
+        if TypeId::of::<PhantomData<Sell>>() == self.order_type.type_id() {
+            return OrderResolution::Sell(self.change_type().check_order());
+        }
+
+        panic!("Invalid order type: {:?}", self.order_type);
     }
 }
 
