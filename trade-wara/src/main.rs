@@ -2,17 +2,21 @@ use std::{
     collections::HashMap,
     sync::{
         mpsc::{channel, TryRecvError},
-        Arc,
+        Arc, Mutex,
     },
     thread,
 };
 
-use trade_wara::{entities::order::OrderItem, order_book::OrderBook};
+use trade_wara::{
+    entities::{order::OrderItem, transaction::Transaction},
+    order_book::OrderBook,
+};
 
 fn main() {
-    let mut book_hash = HashMap::new();
-    let orders_in = channel::<Arc<dyn OrderItem>>();
-    let orders_out = channel::<Arc<dyn OrderItem>>();
+    let book_hash = Arc::new(Mutex::new(HashMap::new()));
+
+    let orders = channel::<Arc<dyn OrderItem>>();
+    let transactions = channel::<Arc<Transaction>>();
 
     thread::Builder::new()
         .name("kafka-listener".into())
@@ -28,27 +32,37 @@ fn main() {
     thread::Builder::new()
         .name("trade-matcher".into())
         .spawn(move || loop {
-            if let Ok(order) = orders_in.1.try_recv() {
+            if let Ok(order) = orders.1.try_recv() {
+                let mut book_hash = book_hash.lock().unwrap();
+
                 let book = book_hash
                     .entry(order.asset_id())
                     .or_insert(OrderBook::new(order.asset_id()));
 
-                match book.append(order.resolve_type()) {
-                    Err(err) => panic!("{:?}", err),
-                    Ok(()) => {
-                        // Do order match here
+                let order = order.resolve_type();
 
-                        // Send order to orders_out
+                if let Err(err) = book.append(order) {
+                    panic!("{:#?}", err);
+                }
+
+                match book.try_match() {
+                    Err(err) => println!("Match Failed {:?}\n\n", err),
+                    Ok(transaction) => {
+                        transactions.0.send(transaction).unwrap();
                     }
                 }
             }
         })
         .unwrap();
 
-    // Order publisher
+    // Transaction publisher
     loop {
-        match orders_out.1.try_recv() {
-            Ok(_) => println!("Receive in main"), // Publish processed order Kafka here
+        match transactions.1.try_recv() {
+            Ok(transaction) => {
+                println!("Receive TRANSACTION in main: {:#?}\n\n", transaction);
+
+                // Publish transaction to Kafka here
+            }
             Err(TryRecvError::Empty) => continue,
             Err(TryRecvError::Disconnected) => {
                 panic!("The channel has been disconnected, shutting down.");
