@@ -106,7 +106,7 @@ impl<T: OrderType, S: OrderState> Order<T, S> {
         }
     }
 
-    fn check_order(&self) -> OrderTransition<T> {
+    pub fn check_order(&self) -> OrderTransition<T> {
         if self.pending_shares > 0 {
             return OrderTransition::Open(self.copy());
         }
