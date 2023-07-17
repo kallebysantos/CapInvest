@@ -80,7 +80,7 @@ impl<T: OrderType, S: OrderState> Order<T, S> {
         }
     }
 
-    fn copy<TState: OrderState>(&self) -> Order<T, TState> {
+    pub(crate) fn copy<TState: OrderState>(&self) -> Order<T, TState> {
         Order::<T, TState> {
             id: self.id.to_owned(),
             price: self.price.to_owned(),

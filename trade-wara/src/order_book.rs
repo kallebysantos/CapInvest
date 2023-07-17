@@ -136,3 +136,193 @@ impl OrderBook {
         }
     }
 }
+
+#[cfg(test)]
+mod tests {
+    use crate::entities::{asset::Asset, investor::Investor, order::OrderItem};
+
+    use super::*;
+
+    #[test]
+    fn append_orders() {
+        let asset_1 = Asset::new("HGLG11".into(), "FII HGLG11".into());
+        let asset_2 = Asset::new("WRONG11".into(), "Wrong Asset".into());
+
+        let mut book = OrderBook::new(asset_1.id().to_owned());
+
+        let investor = Investor::new(
+            "123".into(),
+            "Foo".into(),
+            vec![(asset_1.id().to_owned(), 10)],
+        );
+
+        let sell_order = Order::<Sell, Open>::new(
+            asset_1.to_owned(),
+            investor.to_owned(),
+            "A".into(),
+            5.0,
+            10,
+        );
+
+        let sell_order_2 = Order::<Sell, Open>::new(
+            asset_1.to_owned(),
+            investor.to_owned(),
+            "A".into(),
+            3.0,
+            10,
+        );
+
+        let buy_order = Order::<Buy, Open>::new(
+            asset_1.to_owned(),
+            investor.to_owned(),
+            "B".into(),
+            3.0,
+            10,
+        );
+
+        let buy_order_2 = Order::<Buy, Open>::new(
+            asset_1.to_owned(),
+            investor.to_owned(),
+            "C".into(),
+            5.0,
+            10,
+        );
+
+        let wrong_order = Order::<Buy, Open>::new(
+            asset_2.to_owned(),
+            investor.to_owned(),
+            "D".into(),
+            1.0,
+            10,
+        );
+
+        assert!(book.append(sell_order.resolve_type()).is_ok());
+        assert!(book.append(sell_order_2.resolve_type()).is_ok());
+        assert!(book.append(buy_order.resolve_type()).is_ok());
+        assert!(book.append(buy_order_2.resolve_type()).is_ok());
+
+        assert_eq!(
+            OrderBookError::InvalidOrderAssetId,
+            book.append(wrong_order.resolve_type()).unwrap_err()
+        );
+
+        assert_eq!(2, book.sell_orders.len());
+        assert_eq!(2, book.buy_orders.len());
+
+        // Buy orders with increased prices should have higher priority
+        assert_eq!(&buy_order_2, book.buy_orders.peek().unwrap());
+
+        // Sell orders with lowest prices should have higher priority
+        assert_eq!(&Reverse(sell_order_2), book.sell_orders.peek().unwrap());
+    }
+
+    #[test]
+    fn match_orders() {
+        const ORDER_PRICE: f32 = 5.0;
+        const INCREASED_ORDER_PRICE: f32 = ORDER_PRICE + 0.5;
+
+        const ORDER_QUANTITY: u32 = 10;
+        const PARTIAL_QUANTITY: u32 = ORDER_QUANTITY / 2;
+
+        let asset = Asset::new("HGLG11".into(), "FII HGLG11".into());
+        let mut book = OrderBook::new(asset.id().to_owned());
+
+        let investor_a = Investor::new(
+            "123".into(),
+            "Foo".into(),
+            vec![(asset.id().to_owned(), 10)],
+        );
+
+        let investor_b = Investor::new("321".into(), "Bar".into(), vec![]);
+
+        let mut order_a = Order::<Sell, Open>::new(
+            asset.to_owned(),
+            investor_a,
+            "A".into(),
+            ORDER_PRICE,
+            ORDER_QUANTITY,
+        );
+
+        let mut order_b = Order::<Buy, Open>::new(
+            asset.to_owned(),
+            investor_b.to_owned(),
+            "B".into(),
+            ORDER_PRICE,
+            PARTIAL_QUANTITY,
+        );
+
+        let mut order_c = Order::<Buy, Open>::new(
+            asset.to_owned(),
+            investor_b.to_owned(),
+            "C".into(),
+            INCREASED_ORDER_PRICE,
+            PARTIAL_QUANTITY,
+        );
+
+        assert!(book.append(order_a.resolve_type()).is_ok());
+        assert!(book.append(order_b.resolve_type()).is_ok());
+        assert!(book.append(order_c.resolve_type()).is_ok());
+
+        assert_eq!(1, book.sell_orders.len());
+        assert_eq!(2, book.buy_orders.len());
+
+        // Buy orders with increased prices should have higher priority
+        assert_eq!(&order_c, book.buy_orders.peek().unwrap());
+
+        /* 1º PARTIAL TRANSACTION */
+
+        let partial_transaction = book.try_match().unwrap();
+
+        const INCREASED_PARTIAL_TOTAL: f32 =
+            INCREASED_ORDER_PRICE * PARTIAL_QUANTITY as f32;
+
+        assert_eq!(PARTIAL_QUANTITY, partial_transaction.traded_shares());
+        assert_eq!(INCREASED_PARTIAL_TOTAL, partial_transaction.total());
+
+        assert!(order_a.sell(PARTIAL_QUANTITY).is_ok());
+        assert!(order_c.buy(PARTIAL_QUANTITY).is_ok());
+
+        assert_eq!(
+            &OrderTransition::Open(order_a.copy()),
+            partial_transaction.selling_order()
+        );
+        assert_eq!(
+            &OrderTransition::Closed(order_c.copy()),
+            partial_transaction.buying_order()
+        );
+
+        assert_eq!(1, book.transactions.len());
+        assert_eq!(1, book.sell_orders.len());
+        assert_eq!(1, book.buy_orders.len());
+        assert_eq!(&order_b, book.buy_orders.peek().unwrap());
+
+        /* 2º PARTIAL TRANSACTION */
+
+        let partial_transaction = book.try_match().unwrap();
+        const PARTIAL_TOTAL: f32 = ORDER_PRICE * PARTIAL_QUANTITY as f32;
+
+        assert_eq!(PARTIAL_QUANTITY, partial_transaction.traded_shares());
+        assert_eq!(PARTIAL_TOTAL, partial_transaction.total());
+
+        assert!(order_a.sell(PARTIAL_QUANTITY).is_ok());
+        assert!(order_b.buy(PARTIAL_QUANTITY).is_ok());
+
+        assert_eq!(
+            &OrderTransition::Closed(order_a.copy()),
+            partial_transaction.selling_order()
+        );
+        assert_eq!(
+            &OrderTransition::Closed(order_b.copy()),
+            partial_transaction.buying_order()
+        );
+
+        assert_eq!(2, book.transactions.len());
+        assert_eq!(0, book.sell_orders.len());
+        assert_eq!(0, book.buy_orders.len());
+
+        assert_eq!(
+            OrderBookError::NoMatchingOrderAvailable,
+            book.try_match().unwrap_err()
+        )
+    }
+}

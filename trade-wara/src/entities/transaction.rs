@@ -29,4 +29,28 @@ impl Transaction {
             traded_at: Utc::now(),
         }
     }
+
+    pub fn id(&self) -> &str {
+        self.id.as_ref()
+    }
+
+    pub fn buying_order(&self) -> &OrderTransition<Buy> {
+        &self.buying_order
+    }
+
+    pub fn selling_order(&self) -> &OrderTransition<Sell> {
+        &self.selling_order
+    }
+
+    pub fn traded_shares(&self) -> u32 {
+        self.traded_shares
+    }
+
+    pub fn total(&self) -> f32 {
+        self.total
+    }
+
+    pub fn traded_at(&self) -> DateTime<Utc> {
+        self.traded_at
+    }
 }
