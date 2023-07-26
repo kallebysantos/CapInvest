@@ -45,7 +45,7 @@ impl Investor {
         Ok(())
     }
 
-    pub(super) fn assets(&self) -> &HashMap<String, u32> {
+    pub fn assets(&self) -> &HashMap<String, u32> {
         &self.assets
     }
 }
