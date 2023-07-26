@@ -5,8 +5,14 @@ use std::{
         Arc, Mutex,
     },
     thread,
+    time::Duration,
 };
 
+use rdkafka::{
+    config::RDKafkaLogLevel,
+    consumer::{BaseConsumer, CommitMode, Consumer, DefaultConsumerContext},
+    ClientConfig, Message,
+};
 use trade_wara::{
     entities::{order::OrderItem, transaction::Transaction},
     order_book::OrderBook,
@@ -20,8 +26,45 @@ fn main() {
 
     thread::Builder::new()
         .name("kafka-listener".into())
-        .spawn(move || loop {
+        .spawn(move || {
+            let consumer = ClientConfig::new()
+                .set("group.id", "rust_consumer_group")
+                .set("bootstrap.servers", "localhost:19092")
+                .set("enable.partition.eof", "false")
+                .set("session.timeout.ms", "6000")
+                .set("enable.auto.commit", "true")
+                .set_log_level(RDKafkaLogLevel::Debug)
+                .create::<BaseConsumer<DefaultConsumerContext>>()
+                .expect("Failed to create consumer");
+
+            consumer
+                .subscribe(&["test_topic"])
+                .expect("Failed to subscribe");
+
             // List Kafka here
+            loop {
+                match consumer.poll(Duration::ZERO) {
+                    Some(msg) => {
+                        println!("message received");
+
+                        let msg = msg.expect("Failed to get message");
+
+                        println!("MESSAGE : {:?}", msg);
+
+                        let payload = msg
+                            .payload_view::<str>()
+                            .unwrap()
+                            .expect("Failed to get message payload");
+
+                        println!("PAYLOAD: {:?}", payload);
+
+                        consumer
+                            .commit_message(&msg, CommitMode::Sync)
+                            .unwrap();
+                    }
+                    None => (),
+                }
+            }
 
             // Parse input orders from Kafka
 
