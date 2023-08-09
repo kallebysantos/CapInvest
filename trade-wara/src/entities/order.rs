@@ -34,7 +34,7 @@ impl OrderState for Open {}
 pub struct Closed;
 impl OrderState for Closed {}
 
-#[derive(Debug, Eq, PartialEq, Clone)]
+#[derive(Debug, PartialEq, Eq)]
 pub struct Order<T: OrderType, S: OrderState> {
     id: String,
     price: ComparableFloat,
@@ -211,6 +211,15 @@ impl<T: OrderType, S: OrderState> PartialOrd for Order<T, S> {
     }
 }
 
+impl<T: OrderType + 'static> Into<Box<dyn OrderItem>> for OrderTransition<T> {
+    fn into(self) -> Box<dyn OrderItem> {
+        match self {
+            OrderTransition::Open(order) => Box::new(order),
+            OrderTransition::Closed(order) => Box::new(order),
+        }
+    }
+}
+
 impl From<OrderItemDTO> for OrderResolution {
     fn from(value: OrderItemDTO) -> OrderResolution {
         match value {
@@ -241,6 +250,15 @@ impl From<OrderItemDTO> for OrderResolution {
                     order.quantity,
                 )))
             }
+        }
+    }
+}
+
+impl Into<Box<dyn OrderItem>> for OrderResolution {
+    fn into(self) -> Box<dyn OrderItem> {
+        match self {
+            OrderResolution::Sell(order) => order.into(),
+            OrderResolution::Buy(order) => order.into(),
         }
     }
 }

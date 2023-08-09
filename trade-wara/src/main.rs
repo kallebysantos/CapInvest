@@ -14,7 +14,10 @@ use rdkafka::{
     ClientConfig, Message,
 };
 use trade_wara::{
-    entities::{order::OrderItem, transaction::Transaction},
+    entities::{
+        order::{OrderItem, OrderResolution},
+        transaction::Transaction,
+    },
     order_book::OrderBook,
 };
 
@@ -52,23 +55,24 @@ fn main() {
                         println!("MESSAGE : {:?}", msg);
 
                         let payload = msg
-                            .payload_view::<str>()
-                            .unwrap()
+                            .payload()
                             .expect("Failed to get message payload");
 
-                        println!("PAYLOAD: {:?}", payload);
+                        let order: OrderResolution =
+                            serde_json::from_slice(payload)
+                                .expect("Failed to parse message payload");
 
-                        consumer
-                            .commit_message(&msg, CommitMode::Sync)
-                            .unwrap();
+                        let order: Box<dyn OrderItem> = order.into();
+
+                        if let Ok(()) = orders.0.send(order.into()) {
+                            consumer
+                                .commit_message(&msg, CommitMode::Sync)
+                                .unwrap();
+                        }
                     }
                     None => (),
                 }
             }
-
-            // Parse input orders from Kafka
-
-            // Send order to orders_in
         })
         .unwrap();
 
@@ -80,9 +84,11 @@ fn main() {
 
                 let book = book_hash
                     .entry(order.asset_id())
-                    .or_insert(OrderBook::new(order.asset_id()));
+                    .or_insert(OrderBook::new(order.asset_id().to_string()));
 
                 let order = order.resolve_type();
+
+                println!("Received order: {:#?}", order);
 
                 if let Err(err) = book.append(order) {
                     panic!("{:#?}", err);
