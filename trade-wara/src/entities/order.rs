@@ -215,7 +215,7 @@ mod tests {
 
     #[test]
     fn cmp_order() {
-        let asset = Asset::new("HGLG11".into(), "FII HGLG11".into());
+        let asset = Asset::new("HGLG11".into());
         let investor = Investor::new(
             "123".into(),
             "Joe".into(),
@@ -244,7 +244,7 @@ mod tests {
 
     #[test]
     fn heap_orders() {
-        let asset = Asset::new("HGLG11".into(), "FII HGLG11".into());
+        let asset = Asset::new("HGLG11".into());
         let investor = Investor::new(
             "123".into(),
             "Joe".into(),
@@ -282,7 +282,7 @@ mod tests {
 
     #[test]
     fn check_order_state() {
-        let asset = Asset::new("HGLG11".into(), "FII HGLG11".into());
+        let asset = Asset::new("HGLG11".into());
         let investor = Investor::new(
             "123".into(),
             "Joe".into(),
@@ -308,7 +308,7 @@ mod tests {
 
     #[test]
     fn check_sell() {
-        let asset = Asset::new("HGLG11".into(), "FII HGLG11".into());
+        let asset = Asset::new("HGLG11".into());
         let investor = Investor::new(
             "123".into(),
             "Joe".into(),
@@ -339,7 +339,7 @@ mod tests {
 
     #[test]
     fn check_buy() {
-        let asset = Asset::new("HGLG11".into(), "FII HGLG11".into());
+        let asset = Asset::new("HGLG11".into());
         let investor = Investor::new(
             "123".into(),
             "Joe".into(),

@@ -145,8 +145,8 @@ mod tests {
 
     #[test]
     fn append_orders() {
-        let asset_1 = Asset::new("HGLG11".into(), "FII HGLG11".into());
-        let asset_2 = Asset::new("WRONG11".into(), "Wrong Asset".into());
+        let asset_1 = Asset::new("HGLG11".into());
+        let asset_2 = Asset::new("WRONG11".into());
 
         let mut book = OrderBook::new(asset_1.id().to_owned());
 
@@ -224,7 +224,7 @@ mod tests {
         const ORDER_QUANTITY: u32 = 10;
         const PARTIAL_QUANTITY: u32 = ORDER_QUANTITY / 2;
 
-        let asset = Asset::new("HGLG11".into(), "FII HGLG11".into());
+        let asset = Asset::new("HGLG11".into());
         let mut book = OrderBook::new(asset.id().to_owned());
 
         let investor_a = Investor::new(
