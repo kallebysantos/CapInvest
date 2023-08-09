@@ -3,8 +3,11 @@ use std::{
     marker::PhantomData,
 };
 
+use serde::Deserialize;
+
 use crate::{
-    entities::asset::Asset, entities::investor::Investor, ComparableFloat,
+    dto::order_dto::OrderItemDTO, entities::asset::Asset,
+    entities::investor::Investor, ComparableFloat,
 };
 
 pub trait OrderItem: Sync + Send {
@@ -54,7 +57,8 @@ pub enum OrderTransition<T: OrderType> {
     Closed(Order<T, Closed>),
 }
 
-#[derive(Debug, PartialEq)]
+#[derive(Debug, Deserialize, PartialEq)]
+#[serde(tag = "order_type", from = "OrderItemDTO")]
 pub enum OrderResolution {
     Sell(OrderTransition<Sell>),
     Buy(OrderTransition<Buy>),
@@ -204,6 +208,40 @@ impl<T: OrderType, S: OrderState> Ord for Order<T, S> {
 impl<T: OrderType, S: OrderState> PartialOrd for Order<T, S> {
     fn partial_cmp(&self, other: &Self) -> Option<std::cmp::Ordering> {
         Some(self.cmp(&other))
+    }
+}
+
+impl From<OrderItemDTO> for OrderResolution {
+    fn from(value: OrderItemDTO) -> OrderResolution {
+        match value {
+            OrderItemDTO::Buy(order) => {
+                OrderResolution::Buy(OrderTransition::Open(Order::new(
+                    Asset::new(order.asset_id),
+                    Investor::new(
+                        order.investor_id,
+                        order.investor_name,
+                        vec![],
+                    ),
+                    order.id,
+                    order.price,
+                    order.quantity,
+                )))
+            }
+
+            OrderItemDTO::Sell(order) => {
+                OrderResolution::Sell(OrderTransition::Open(Order::new(
+                    Asset::new(order.asset_id.to_string()),
+                    Investor::new(
+                        order.investor_id,
+                        order.investor_name,
+                        vec![(order.asset_id.to_string(), order.quantity)],
+                    ),
+                    order.id,
+                    order.price,
+                    order.quantity,
+                )))
+            }
+        }
     }
 }
 
