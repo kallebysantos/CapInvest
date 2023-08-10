@@ -6,7 +6,7 @@ use std::{
 use serde::Deserialize;
 
 use crate::{
-    dto::order_dto::OrderItemDTO, entities::asset::Asset,
+    dto::order_dto::IncomingOrderDTO, entities::asset::Asset,
     entities::investor::Investor, ComparableFloat,
 };
 
@@ -58,7 +58,7 @@ pub enum OrderTransition<T: OrderType> {
 }
 
 #[derive(Debug, Deserialize, PartialEq)]
-#[serde(tag = "order_type", from = "OrderItemDTO")]
+#[serde(tag = "order_type", from = "IncomingOrderDTO")]
 pub enum OrderResolution {
     Sell(OrderTransition<Sell>),
     Buy(OrderTransition<Buy>),
@@ -220,10 +220,10 @@ impl<T: OrderType + 'static> Into<Box<dyn OrderItem>> for OrderTransition<T> {
     }
 }
 
-impl From<OrderItemDTO> for OrderResolution {
-    fn from(value: OrderItemDTO) -> OrderResolution {
+impl From<IncomingOrderDTO> for OrderResolution {
+    fn from(value: IncomingOrderDTO) -> OrderResolution {
         match value {
-            OrderItemDTO::Buy(order) => {
+            IncomingOrderDTO::Buy(order) => {
                 OrderResolution::Buy(OrderTransition::Open(Order::new(
                     Asset::new(order.asset_id),
                     Investor::new(
@@ -237,7 +237,7 @@ impl From<OrderItemDTO> for OrderResolution {
                 )))
             }
 
-            OrderItemDTO::Sell(order) => {
+            IncomingOrderDTO::Sell(order) => {
                 OrderResolution::Sell(OrderTransition::Open(Order::new(
                     Asset::new(order.asset_id.to_string()),
                     Investor::new(

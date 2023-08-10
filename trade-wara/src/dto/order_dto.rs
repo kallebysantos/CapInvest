@@ -2,7 +2,7 @@ use serde::Deserialize;
 
 #[derive(Debug, Deserialize)]
 #[serde(tag = "order_type")]
-pub enum OrderItemDTO {
+pub enum IncomingOrderDTO {
     Buy(OrderDTO),
     Sell(OrderDTO),
 }
