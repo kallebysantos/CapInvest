@@ -1,9 +1,14 @@
 use chrono::{DateTime, Utc};
+use serde::Serialize;
 use uuid::Uuid;
 
-use super::order::{Buy, OrderTransition, Sell};
+use crate::{
+    dto::transaction_dto::TransactionDTO,
+    entities::order::{Buy, OrderTransition, Sell},
+};
 
-#[derive(Debug)]
+#[derive(Debug, Clone, Serialize)]
+#[serde(into = "TransactionDTO")]
 pub struct Transaction {
     id: String,
     buying_order: OrderTransition<Buy>,

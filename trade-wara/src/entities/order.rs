@@ -18,23 +18,23 @@ pub trait OrderItem: Sync + Send {
 pub trait OrderType: Sync + Send + PartialEq + Eq {}
 pub trait OrderState: Sync + Send + PartialEq + Eq {}
 
-#[derive(Debug, PartialEq, Eq, Ord, PartialOrd)]
+#[derive(Debug, Clone, PartialEq, Eq, Ord, PartialOrd)]
 pub struct Buy;
 impl OrderType for Buy {}
 
-#[derive(Debug, PartialEq, Eq, Ord, PartialOrd)]
+#[derive(Debug, Clone, PartialEq, Eq, Ord, PartialOrd)]
 pub struct Sell;
 impl OrderType for Sell {}
 
-#[derive(Debug, PartialEq, Eq, Ord, PartialOrd)]
+#[derive(Debug, Clone, PartialEq, Eq, Ord, PartialOrd)]
 pub struct Open;
 impl OrderState for Open {}
 
-#[derive(Debug, PartialEq, Eq, Ord, PartialOrd)]
+#[derive(Debug, Clone, PartialEq, Eq, Ord, PartialOrd)]
 pub struct Closed;
 impl OrderState for Closed {}
 
-#[derive(Debug, PartialEq, Eq)]
+#[derive(Debug, Clone, PartialEq, Eq)]
 pub struct Order<T: OrderType, S: OrderState> {
     id: String,
     price: ComparableFloat,
@@ -51,7 +51,7 @@ pub enum OrderError {
     OutRangeShareCount,
 }
 
-#[derive(Debug, PartialEq)]
+#[derive(Debug, Clone, PartialEq)]
 pub enum OrderTransition<T: OrderType> {
     Open(Order<T, Open>),
     Closed(Order<T, Closed>),
@@ -176,6 +176,15 @@ impl Order<Sell, Open> {
         self.pending_shares -= share_count;
 
         Ok(self.check_order())
+    }
+}
+
+impl<T: OrderType> OrderTransition<T> {
+    pub fn get_order_id(&self) -> &str {
+        match self {
+            OrderTransition::Open(order) => order.id(),
+            OrderTransition::Closed(order) => order.id(),
+        }
     }
 }
 
