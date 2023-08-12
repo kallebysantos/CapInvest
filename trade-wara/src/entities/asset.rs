@@ -4,11 +4,11 @@ pub struct Asset {
 }
 
 impl Asset {
-    pub fn new(id: String) -> Self {
-        Asset { id }
+    pub fn new(id: &str) -> Self {
+        Asset { id: id.to_string() }
     }
 
-    pub fn id(&self) -> &String {
+    pub fn id(&self) -> &str {
         &self.id
     }
 }

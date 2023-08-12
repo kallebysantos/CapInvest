@@ -83,7 +83,7 @@ fn main() {
                 let mut book_hash = book_hash.lock().unwrap();
 
                 let book = book_hash
-                    .entry(order.asset_id())
+                    .entry(order.asset_id().to_owned())
                     .or_insert(OrderBook::new(order.asset_id().to_string()));
 
                 let order = order.resolve_type();

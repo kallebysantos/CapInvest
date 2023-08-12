@@ -13,7 +13,7 @@ use crate::{
 pub trait OrderItem: Sync + Send {
     fn resolve_type(&self) -> OrderResolution;
 
-    fn asset_id(&self) -> String;
+    fn asset_id(&self) -> &str;
 }
 pub trait OrderType: Sync + Send + PartialEq + Eq {}
 pub trait OrderState: Sync + Send + PartialEq + Eq {}
@@ -68,12 +68,12 @@ impl<T: OrderType, S: OrderState> Order<T, S> {
     pub fn new(
         asset: Asset,
         investor: Investor,
-        id: String,
+        id: &str,
         price: f32,
         shares: u32,
     ) -> Order<T, S> {
         Order::<T, S> {
-            id,
+            id: id.into(),
             price: price.into(),
             shares,
             pending_shares: shares,
@@ -150,8 +150,7 @@ impl Order<Buy, Open> {
             return Err(OrderError::OutRangeShareCount);
         }
 
-        self.investor
-            .increment_asset(self.asset.id().to_owned(), share_count);
+        self.investor.increment_asset(self.asset.id(), share_count);
 
         self.pending_shares -= share_count;
 
@@ -168,9 +167,8 @@ impl Order<Sell, Open> {
             return Err(OrderError::OutRangeShareCount);
         }
 
-        if let Err(_) = self
-            .investor
-            .decrement_asset(self.asset.id().to_owned(), share_count)
+        if let Err(_) =
+            self.investor.decrement_asset(self.asset.id(), share_count)
         {
             return Err(OrderError::OutRangeShareCount);
         }
@@ -194,8 +192,8 @@ impl<T: OrderType + 'static, S: OrderState> OrderItem for Order<T, S> {
         panic!("Invalid order type: {:?}", self.order_type);
     }
 
-    fn asset_id(&self) -> String {
-        self.asset.id().to_owned()
+    fn asset_id(&self) -> &str {
+        self.asset.id()
     }
 }
 
@@ -220,7 +218,7 @@ impl<T: OrderType + 'static> Into<Box<dyn OrderItem>> for OrderTransition<T> {
     }
 }
 
-impl From<IncomingOrderDTO> for OrderResolution {
+impl<'a> From<IncomingOrderDTO<'a>> for OrderResolution {
     fn from(value: IncomingOrderDTO) -> OrderResolution {
         match value {
             IncomingOrderDTO::Buy(order) => {
@@ -239,11 +237,11 @@ impl From<IncomingOrderDTO> for OrderResolution {
 
             IncomingOrderDTO::Sell(order) => {
                 OrderResolution::Sell(OrderTransition::Open(Order::new(
-                    Asset::new(order.asset_id.to_string()),
+                    Asset::new(order.asset_id),
                     Investor::new(
                         order.investor_id,
                         order.investor_name,
-                        vec![(order.asset_id.to_string(), order.quantity)],
+                        vec![(order.asset_id.into(), order.quantity)],
                     ),
                     order.id,
                     order.price,
@@ -271,24 +269,20 @@ mod tests {
 
     #[test]
     fn cmp_order() {
-        let asset = Asset::new("HGLG11".into());
-        let investor = Investor::new(
-            "123".into(),
-            "Joe".into(),
-            vec![("HGLG11".into(), 10)],
-        );
+        let asset = Asset::new("HGLG11");
+        let investor = Investor::new("123", "Joe", vec![("HGLG11".into(), 10)]);
 
         let high_order = Order::<Sell, Open>::new(
             asset.to_owned(),
             investor.to_owned(),
-            "321".to_owned(),
+            "321",
             7.0,
             3,
         );
         let small_order = Order::<Sell, Open>::new(
             asset.to_owned(),
             investor.to_owned(),
-            "123".to_owned(),
+            "123",
             3.0,
             5,
         );
@@ -300,32 +294,28 @@ mod tests {
 
     #[test]
     fn heap_orders() {
-        let asset = Asset::new("HGLG11".into());
-        let investor = Investor::new(
-            "123".into(),
-            "Joe".into(),
-            vec![("HGLG11".into(), 10)],
-        );
+        let asset = Asset::new("HGLG11");
+        let investor = Investor::new("123", "Joe", vec![("HGLG11".into(), 10)]);
 
         let mut heap = BinaryHeap::<Order<Sell, Open>>::new();
         heap.push(Order::new(
             asset.to_owned(),
             investor.to_owned(),
-            "1".into(),
+            "1",
             5.0,
             5,
         ));
         heap.push(Order::new(
             asset.to_owned(),
             investor.to_owned(),
-            "2".into(),
+            "2",
             7.0,
             3,
         ));
         heap.push(Order::new(
             asset.to_owned(),
             investor.to_owned(),
-            "3".into(),
+            "3",
             3.75,
             100,
         ));
@@ -338,20 +328,11 @@ mod tests {
 
     #[test]
     fn check_order_state() {
-        let asset = Asset::new("HGLG11".into());
-        let investor = Investor::new(
-            "123".into(),
-            "Joe".into(),
-            vec![("HGLG11".into(), 10)],
-        );
+        let asset = Asset::new("HGLG11");
+        let investor = Investor::new("123", "Joe", vec![("HGLG11".into(), 10)]);
 
-        let mut order = Order::<Sell, Open>::new(
-            asset,
-            investor.to_owned(),
-            "123".into(),
-            7.0,
-            5,
-        );
+        let mut order =
+            Order::<Sell, Open>::new(asset, investor.to_owned(), "123", 7.0, 5);
 
         // "Setting pending shares to zero should close an Order"
         order.pending_shares = 0;
@@ -364,20 +345,11 @@ mod tests {
 
     #[test]
     fn check_sell() {
-        let asset = Asset::new("HGLG11".into());
-        let investor = Investor::new(
-            "123".into(),
-            "Joe".into(),
-            vec![("HGLG11".into(), 10)],
-        );
+        let asset = Asset::new("HGLG11");
+        let investor = Investor::new("123", "Joe", vec![("HGLG11".into(), 10)]);
 
-        let mut order = Order::<Sell, Open>::new(
-            asset,
-            investor.to_owned(),
-            "123".into(),
-            7.0,
-            5,
-        );
+        let mut order =
+            Order::<Sell, Open>::new(asset, investor.to_owned(), "123", 7.0, 5);
 
         // "Selling more than it owns should return an Err"
         assert_eq!(Err(OrderError::OutRangeShareCount), order.sell(10));
@@ -395,20 +367,11 @@ mod tests {
 
     #[test]
     fn check_buy() {
-        let asset = Asset::new("HGLG11".into());
-        let investor = Investor::new(
-            "123".into(),
-            "Joe".into(),
-            vec![("HGLG11".into(), 10)],
-        );
+        let asset = Asset::new("HGLG11");
+        let investor = Investor::new("123", "Joe", vec![("HGLG11".into(), 10)]);
 
-        let mut order = Order::<Buy, Open>::new(
-            asset,
-            investor.to_owned(),
-            "123".into(),
-            7.0,
-            5,
-        );
+        let mut order =
+            Order::<Buy, Open>::new(asset, investor.to_owned(), "123", 7.0, 5);
 
         // "Buy more than it needs should return an Err"
         assert_eq!(Err(OrderError::OutRangeShareCount), order.buy(10));

@@ -8,31 +8,27 @@ pub struct Investor {
 }
 
 impl Investor {
-    pub fn new(
-        id: String,
-        name: String,
-        assets: Vec<(String, u32)>,
-    ) -> Investor {
+    pub fn new(id: &str, name: &str, assets: Vec<(String, u32)>) -> Investor {
         Investor {
-            id,
-            name,
+            id: id.into(),
+            name: name.into(),
             assets: HashMap::from_iter(assets),
         }
     }
 
-    pub fn increment_asset(&mut self, asset_id: String, quantity: u32) {
+    pub fn increment_asset(&mut self, asset_id: &str, quantity: u32) {
         self.assets
-            .entry(asset_id)
+            .entry(asset_id.into())
             .and_modify(|current| *current += quantity)
             .or_insert(quantity);
     }
 
     pub fn decrement_asset(
         &mut self,
-        asset_id: String,
+        asset_id: &str,
         quantity: u32,
     ) -> Result<(), String> {
-        let Some(asset) = self.assets.get_mut(&asset_id)  else {
+        let Some(asset) = self.assets.get_mut(asset_id)  else {
             return  Err("Asset not found".into());
         };
 
